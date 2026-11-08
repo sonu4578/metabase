@@ -39,6 +39,7 @@
    [metabase.queries.models.parameter-card :as parameter-card]
    [metabase.queries.models.query :as query]
    [metabase.queries.schema :as queries.schema]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.search.core :as search]
    [metabase.serialization.core :as serialization]
    [metabase.settings.core :as setting]
@@ -1926,3 +1927,9 @@
 
 (defmethod serialization/before-load :model/Card [_ items]
   (mapv (comp with-model-metadata keep-local-metadata) items))
+
+(defmethod remote-sync/synced-where-clause :model/Card
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :archived) false]
+   [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]])

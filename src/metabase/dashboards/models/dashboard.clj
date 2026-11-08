@@ -23,6 +23,7 @@
    [metabase.queries.schema :as queries.schema]
    [metabase.query-permissions.core :as query-perms]
    [metabase.query-processor.metadata :as qp.metadata]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.search.core :as search]
    [metabase.serialization.core :as serialization]
    [metabase.settings.core :as setting]
@@ -559,3 +560,9 @@
         loaded         (if (seq action-eids) (dashboards.db/action-entity-ids-in action-eids) #{})
         keep-dashcard? #(or (nil? (:action_id %)) (contains? loaded (:action_id %)))]
     (mapv #(m/update-existing-in % [:entity :dashcards] (partial filterv keep-dashcard?)) items)))
+
+(defmethod remote-sync/synced-where-clause :model/Dashboard
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :archived) false]
+   [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]])

@@ -8,6 +8,7 @@
    [metabase.models.interface :as mi]
    [metabase.permissions.core :as perms]
    [metabase.premium-features.core :refer [defenterprise]]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
    [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
@@ -199,10 +200,15 @@
    (mi/can-query? (warehouse-schema.db/field pk))))
 
 (defenterprise current-user-can-write-field?
-  "OSS implementation. Returns a boolean whether the current user, a superuser, can write the given field."
+  "OSS implementation. Returns a boolean whether the current user can write the given field.
+   Checks both that the user is a superuser and that the parent table is editable (not in a
+   remote-synced collection in read-only mode)."
   metabase-enterprise.advanced-permissions.common
-  [_instance]
-  (mi/superuser?))
+  [instance]
+  (let [table (or (:table instance)
+                  (warehouse-schema.db/table (:table_id instance)))]
+    (and (remote-sync/can-write? :model/TableUserSettings (:id table))
+         (mi/superuser?))))
 
 (defmethod mi/can-write? :model/Field
   ([instance]

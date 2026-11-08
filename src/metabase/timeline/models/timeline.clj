@@ -2,10 +2,12 @@
   (:require
    [metabase.collections.models.collection :as collection]
    [metabase.collections.models.collection.root :as collection.root]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
    [metabase.timeline.db :as timeline.db]
    [metabase.timeline.models.timeline-event :as timeline-event]
    [metabase.timeline.schema :as timeline.schema]
+   [metabase.util :as u]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
 
@@ -65,3 +67,9 @@
           (when collection_id
             #{[:model/Collection collection_id]}))
         timelines))
+
+(defmethod remote-sync/synced-where-clause :model/Timeline
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :archived) false]
+   [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]])

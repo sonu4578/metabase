@@ -9,6 +9,7 @@
    [metabase.permissions.core :as perms]
    [metabase.premium-features.core :refer [defenterprise]]
    [metabase.queries.card-schema :as card-schema]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.search.spec :as search.spec]
    [metabase.serialization.core :as serialization]
    [metabase.util :as u]
@@ -373,10 +374,13 @@
    (mi/can-query? (warehouse-schema.db/table pk))))
 
 (defenterprise current-user-can-write-table?
-  "OSS implementation. Returns a boolean whether the current user, a superuser, can write the given table."
+  "OSS implementation. Returns a boolean whether the current user can write the given table.
+   Checks both that the user is a superuser and that the table is editable (not in a remote-synced
+   collection in read-only mode)."
   metabase-enterprise.advanced-permissions.common
-  [_instance]
-  (mi/superuser?))
+  [instance]
+  (and (remote-sync/can-write? :model/TableUserSettings (:id instance))
+       (mi/superuser?)))
 
 (defmethod mi/can-write? :model/Table
   ;; Check if user can modify this table's metadata.

@@ -2,6 +2,7 @@
   (:require
    [metabase.lib.schema.id :as lib.schema.id]
    [metabase.models.interface :as mi]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
    [metabase.util :as u]
    [metabase.util.malli :as mu]
@@ -223,3 +224,9 @@
                                                  (select-keys settings (user-settings/user-set-table-columns settings))))
     (when (:field_order entity)
       (table/update-field-positions! (warehouse-schema.db/table table_id)))))
+
+(defmethod remote-sync/synced-where-clause :model/TableUserSettings
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :is_published) true]
+   [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]])

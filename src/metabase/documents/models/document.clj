@@ -15,6 +15,7 @@
    [metabase.queries.core :as card]
    [metabase.queries.schema :as queries.schema]
    [metabase.query-permissions.core :as query-perms]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.search.config :as search.config]
    [metabase.search.spec :as search.spec]
    [metabase.serialization.core :as serialization]
@@ -754,3 +755,10 @@
                        (for [[model-name id] (linked-entities document)]
                          [(keyword "model" model-name) id]))))
         documents))
+
+(defmethod remote-sync/synced-where-clause :model/Document
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :archived) false]
+   [:= (u/qualified-key alias :exploration_id) nil]
+   [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]])

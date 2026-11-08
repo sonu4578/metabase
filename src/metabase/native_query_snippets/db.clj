@@ -18,6 +18,14 @@
   [id :- ::lib.schema.id/native-query-snippet]
   (t2/select-one :model/NativeQuerySnippet :id id))
 
+(mu/defn snippet-ids-where :- [:set ::lib.schema.id/native-query-snippet]
+  "The ids among `ids` of the NativeQuerySnippets matching `clause`, a HoneySQL where-clause."
+  [ids    :- [:sequential ::lib.schema.id/native-query-snippet]
+   clause :- [:fn vector?]]
+  (if (seq ids)
+    (set (t2/select-pks-set :model/NativeQuerySnippet {:where [:and [:in :id ids] clause]}))
+    #{}))
+
 (mu/defn snippet-name-exists?
   "Whether a NativeQuerySnippet named `snippet-name` exists."
   [snippet-name :- :string]

@@ -20,6 +20,7 @@
   update-collection!]
  [metabase.collections.models.collection
   archive-or-unarchive-collection!
+  can-write-library?
   has-remote-synced-collection?
   clear-remote-synced-collection!
   create-library-collection!
@@ -28,6 +29,7 @@
   library-collection
   library-collection-type
   library-collection-types
+  library-synced-clause
   library-data-collection-type
   library-metrics-collection-type
   location-path

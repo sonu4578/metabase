@@ -1,7 +1,9 @@
 (ns metabase.transforms.models.transform-transform-tag
   (:require
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
    [metabase.transforms.schema :as transforms.schema]
+   [metabase.util :as u]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
 
@@ -19,3 +21,7 @@
    :parent    {:model :model/Transform :key :transform_id :order (juxt :position :entity_id)}
    :transform {:transform_id serialization/import-only-transform
                :tag_id (serialization/fk-transform :model/TransformTag)}})
+
+(defmethod remote-sync/synced-where-clause :model/TransformTransformTag
+  [_model alias]
+  [:in (u/qualified-key alias :transform_id) (remote-sync/synced-ids-clause :model/Transform)])

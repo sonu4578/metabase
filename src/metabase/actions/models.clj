@@ -14,6 +14,7 @@
    [metabase.permissions.core :as perms]
    [metabase.public-sharing.core :as public-sharing]
    [metabase.queries.models.query :as query]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.search.core :as search]
    [metabase.serialization.core :as serialization]
    [metabase.util :as u]
@@ -285,6 +286,13 @@
   (cond
     model-id
     ((get-method mi/perms-objects-set :perms/use-parent-collection-perms) action read-or-write)
+
+    (and (= read-or-write :write)
+         (nil? collection-id)
+         (not (if-let [id (:id action)]
+                (remote-sync/can-write? :model/Action id)
+                (collection/can-write-library?))))
+    #{"___no-remote-sync-access"}
 
     (nil? collection-id)
     (perms/perms-objects-set-for-parent-collection collection/data-actions-ns nil read-or-write)
@@ -754,3 +762,22 @@
 
 (defmethod serialization/before-load :model/Action [_ items]
   (filterv #(not= "http" (some-> % :entity :type name)) items))
+
+(defmethod remote-sync/synced-where-clause :model/Action
+  [_model alias]
+  [:and
+   [:= (u/qualified-key alias :archived) false]
+   [:or
+    [:in (u/qualified-key alias :collection_id) (remote-sync/synced-ids-clause :model/Collection)]
+    [:and
+     [:= (u/qualified-key alias :collection_id) nil]
+     [:= (u/qualified-key alias :model_id) nil]
+     (collection/library-synced-clause)]]])
+
+(defmethod remote-sync/synced-where-clause :model/QueryAction
+  [_model alias]
+  [:in (u/qualified-key alias :action_id) (remote-sync/synced-ids-clause :model/Action)])
+
+(defmethod remote-sync/synced-where-clause :model/ImplicitAction
+  [_model alias]
+  [:in (u/qualified-key alias :action_id) (remote-sync/synced-ids-clause :model/Action)])

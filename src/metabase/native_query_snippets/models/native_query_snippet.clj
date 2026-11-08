@@ -9,6 +9,7 @@
    [metabase.native-query-snippets.models.native-query-snippet.permissions :as snippet.perms]
    [metabase.native-query-snippets.schema :as native-query-snippets.schema]
    [metabase.premium-features.core :refer [defenterprise]]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
    [metabase.util :as u]
    [metabase.util.i18n :refer [deferred-tru tru]]
@@ -132,27 +133,38 @@
   (apply snippet.perms/can-read? args))
 
 (defmethod mi/can-write? :model/NativeQuerySnippet
-  [& args]
-  (apply snippet.perms/can-write? args))
+  ([snippet]
+   (and (snippet.perms/can-write? snippet)
+        (remote-sync/can-write? :model/NativeQuerySnippet (:id snippet))))
+  ([model id]
+   (and (snippet.perms/can-write? model id)
+        (remote-sync/can-write? :model/NativeQuerySnippet id))))
 
 (defmethod mi/can-create? :model/NativeQuerySnippet
-  [& args]
-  (apply snippet.perms/can-create? args))
+  [model snippet]
+  (and (snippet.perms/can-create? model snippet)
+       (collection/can-write-library?)))
 
 (defmethod mi/can-update? :model/NativeQuerySnippet
-  [& args]
-  (apply snippet.perms/can-update? args))
+  [snippet changes]
+  (and (snippet.perms/can-update? snippet changes)
+       (or (not (remote-sync/synced-changes? :model/NativeQuerySnippet snippet changes))
+           (remote-sync/can-write? :model/NativeQuerySnippet (:id snippet)))))
 
 (methodical/defmethod t2/batched-hydrate [:model/NativeQuerySnippet :can_write]
   [_model k snippets]
   (let [non-nil-snippets (remove nil? snippets)
-        snippets-with-collections (t2/hydrate non-nil-snippets :collection)]
+        snippets-with-collections (t2/hydrate non-nil-snippets :collection)
+        writable-ids (native-query-snippets.db/snippet-ids-where
+                      (map :id non-nil-snippets)
+                      (remote-sync/can-write-clause :model/NativeQuerySnippet :native_query_snippet))]
     (mi/instances-with-hydrated-data
      snippets k
      #(into {}
             (map (fn [snippet]
                    [(:id snippet)
-                    (mi/can-write? snippet)]))
+                    (and (contains? writable-ids (:id snippet))
+                         (snippet.perms/can-write? snippet))]))
             snippets-with-collections)
      :id
      {:default false})))
@@ -268,3 +280,9 @@
                  [(conj items (assoc-in item [:row :name] n)) (assoc taken n entity_id)]))
              [[] taken]
              items))))
+
+(defmethod remote-sync/synced-where-clause :model/NativeQuerySnippet
+  [_model alias]
+  [:and
+   (collection/library-synced-clause)
+   [:= (u/qualified-key alias :archived) false]])

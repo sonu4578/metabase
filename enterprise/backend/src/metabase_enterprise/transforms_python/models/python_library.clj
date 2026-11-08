@@ -7,7 +7,9 @@
    [metabase.events.core :as events]
    [metabase.models.interface :as mi]
    [metabase.permissions.core :as perms]
+   [metabase.remote-sync.core :as remote-sync]
    [metabase.serialization.core :as serialization]
+   [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
@@ -111,3 +113,7 @@
   [library]
   (events/publish-event! :event/python-library-update {:object library})
   library)
+
+(defmethod remote-sync/synced-where-clause :model/PythonLibrary
+  [_model alias]
+  [:= (u/qualified-key alias :is_default) false])

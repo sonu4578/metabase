@@ -18,6 +18,7 @@
    [metabase.models.interface :as mi]
    [metabase.permissions.core :as perms]
    [metabase.premium-features.core :as premium-features :refer [defenterprise]]
+   [metabase.remote-sync.core :as remote-sync]
    ;; Trying to use metabase.search would cause a circular reference ;_;
    [metabase.search.spec :as search.spec]
    [metabase.serialization.core :as serialization]
@@ -194,6 +195,15 @@
   []
   (collections.db/collection-of-type library-collection-type))
 
+(defn can-write-library?
+  "Whether content that belongs to the Library rather than to one of its collections, such as glossary entries, snippets,
+  and actions outside any collection, can be written, which it can't while remote sync keeps a synced Library
+  read-only."
+  []
+  (if-let [library (library-collection)]
+    (remote-sync/can-write? :model/Collection (:id library))
+    true))
+
 (def ^{:arglists '([id])} root-collection-type-by-id
   "Return the `:type` of the top-level (root) collection with the given `id`, or `nil` if no
    top-level collection has that id. Caching is keyed by `[app-db-id collection-id]` per the
@@ -246,6 +256,15 @@
 (def library-entity-id
   "The entity_id for the Library collection."
   "librarylibrarylibrary")
+
+(defn library-synced-clause
+  "The HoneySQL where-clause that holds when remote sync syncs the Library collection."
+  []
+  [:exists ^:allow-subquery {:select [[[:inline 1] :one]]
+                             :from   [[(t2/table-name :model/Collection) :synced_library]]
+                             :where  [:and
+                                      [:= :synced_library.entity_id library-entity-id]
+                                      [:= :synced_library.is_remote_synced true]]}])
 
 (def ^:private library-data-entity-id
   "librarylibrarydatadat")
@@ -354,7 +373,8 @@
   ([instance]
    (and (not (default-audit-collection? instance))
         (not (is-trash-or-descendant? instance))
-        (mi/current-user-has-full-permissions? :write instance)))
+        (mi/current-user-has-full-permissions? :write instance)
+        (remote-sync/can-write? :model/Collection (:id instance))))
   ([_model pk]
    (mi/can-write? (collections.db/collection pk))))
 
@@ -2298,3 +2318,22 @@
           (cond-> item
             (and local (system-collection-name local)) (update :row dissoc :name)))
         items))
+
+(defmethod remote-sync/synced-where-clause :model/Collection
+  [_model alias]
+  (let [column #(u/qualified-key alias %)]
+    [:and
+     [:= (column :archived) false]
+     [:or
+      [:exists ^:allow-subquery {:select [[[:inline 1] :one]]
+                                 :from   [[(t2/table-name :model/Collection) :synced_root]]
+                                 :where  [:and
+                                          [:= :synced_root.is_remote_synced true]
+                                          [:= :synced_root.location "/"]
+                                          [:or
+                                           [:= :synced_root.id (column :id)]
+                                           [:like (column :location) [:concat (h2x/literal "/") :synced_root.id (h2x/literal "/%")]]]]}]
+      [:in (column :namespace) [(name data-apps-ns) (name transforms-ns)]]
+      [:and
+       (library-synced-clause)
+       [:in (column :namespace) [(name snippets-ns) (name data-actions-ns)]]]]]))
