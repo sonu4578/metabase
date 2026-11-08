@@ -7,6 +7,7 @@ import {
 } from "__support__/enterprise";
 import {
   setupApiKeyEndpoints,
+  setupCollectionsEndpoints,
   setupDatabasesEndpoints,
   setupEmailEndpoints,
   setupGroupsEndpoint,
@@ -181,6 +182,7 @@ export const setup = async ({
   fetchMock.get("path:/api/cloud-migration", { status: 204 });
   fetchMock.get("path:/api/ee/sso/oidc", []);
   setupLibraryEndpoints();
+  setupCollectionsEndpoints({ collections: [] });
 
   const user = createMockUser({
     is_superuser: isAdmin,

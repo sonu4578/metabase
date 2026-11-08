@@ -2157,7 +2157,7 @@ LIMIT
     });
   });
 
-  describe.skip("read-only remote sync", () => {
+  describe("read-only remote sync", () => {
     beforeEach(() => {
       cy.log("create a transform");
       createSqlTransform({
